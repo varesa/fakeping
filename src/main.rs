@@ -1,8 +1,8 @@
 use etherparse::NetSlice::Ipv4;
 use etherparse::{Icmpv4Type, PacketBuilder, SlicedPacket, TransportSlice};
+use etherparse::LinkSlice::Ethernet2;
 use std::env;
 use std::io::Write;
-use std::u64;
 use TransportSlice::Icmpv4;
 
 fn main() {
@@ -37,23 +37,10 @@ fn main() {
                 continue;
             }
         };
-        let data = packet.data;
-        if data.len() < 14 {
-            continue;
-        }
-
-        // Ethernet header
-        let dst_mac = &data[0..6];
-        let src_mac = &data[6..12];
-        let ethertype = u16::from_be_bytes([data[12], data[13]]);
-        if ethertype != 0x0800 {
-            continue; // not IPv4
-        }
-
-        let slice = &data[14..];
-        let packet = SlicedPacket::from_ip(slice);
+        let packet = SlicedPacket::from_ethernet(packet.data);
 
         if let Ok(SlicedPacket {
+            link: Some(Ethernet2(eth)),
             net: Some(Ipv4(ip)),
             transport: Some(Icmpv4(icmp)),
             ..
@@ -102,9 +89,11 @@ fn main() {
                 // Build Ethernet header (swap src/dst MACs)
                 let mut response_buffer =
                     Vec::<u8>::with_capacity(14 + new_packet.size(response_payload.len()));
+                let orig_src_mac = eth.source();
+                let orig_dst_mac = eth.destination();
                 // dst = original src, src = original dst
-                response_buffer.extend_from_slice(src_mac);
-                response_buffer.extend_from_slice(dst_mac);
+                response_buffer.extend_from_slice(&orig_src_mac);
+                response_buffer.extend_from_slice(&orig_dst_mac);
                 response_buffer.extend_from_slice(&0x0800u16.to_be_bytes());
 
                 new_packet
