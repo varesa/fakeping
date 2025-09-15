@@ -1,9 +1,8 @@
 use etherparse::NetSlice::Ipv4;
-use etherparse::{Icmpv4Type, PacketBuilder, SlicedPacket, TransportSlice};
+use etherparse::{Icmpv4Type, PacketBuilder, SlicedPacket, TransportSlice::Icmpv4};
 use etherparse::LinkSlice::Ethernet2;
 use std::env;
 use std::io::Write;
-use TransportSlice::Icmpv4;
 
 fn main() {
     // Interface to capture on must be provided via env var PCAP_IFACE
@@ -83,20 +82,15 @@ fn main() {
                     response_payload[8..16].copy_from_slice(&useconds.to_le_bytes());
                 }
 
-                let new_packet = PacketBuilder::ipv4(new_source, new_destination, 255)
-                    .icmpv4_echo_reply(echo_request.id, echo_request.seq);
-
-                // Build Ethernet header (swap src/dst MACs)
-                let mut response_buffer =
-                    Vec::<u8>::with_capacity(14 + new_packet.size(response_payload.len()));
                 let orig_src_mac = eth.source();
                 let orig_dst_mac = eth.destination();
-                // dst = original src, src = original dst
-                response_buffer.extend_from_slice(&orig_src_mac);
-                response_buffer.extend_from_slice(&orig_dst_mac);
-                response_buffer.extend_from_slice(&0x0800u16.to_be_bytes());
 
-                new_packet
+                let header_builder = PacketBuilder::ethernet2(orig_dst_mac, orig_src_mac)
+                    .ipv4(new_source, new_destination, 255)
+                    .icmpv4_echo_reply(echo_request.id, echo_request.seq);
+
+                let mut response_buffer = Vec::<u8>::with_capacity(header_builder.size(response_payload.len()));
+                header_builder
                     .write(&mut response_buffer, &response_payload)
                     .unwrap();
 
