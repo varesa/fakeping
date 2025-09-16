@@ -50,10 +50,6 @@ fn main() {
                 let new_destination = ip.header().source();
                 let payload = icmp.payload();
 
-                if payload.len() < 16 {
-                    // not our expected payload; still respond unchanged
-                }
-
                 let mut seconds: [u8; 8] = [0; 8];
                 let mut useconds: [u8; 8] = [0; 8];
                 if payload.len() >= 16 {
